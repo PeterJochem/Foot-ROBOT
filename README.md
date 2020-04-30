@@ -15,7 +15,8 @@ Change the dir as the image below:
 ![IMG](https://github.com/HappyLamb123/Foot-ROBOT/blob/master/img/ccmake2.PNG?raw=true)
 
 * The final step of compiling is use:
-> make 
+> **make** 
+
 command where you put your exe file
 
 * To **run** the code you should use command:
