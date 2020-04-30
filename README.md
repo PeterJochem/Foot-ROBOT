@@ -13,6 +13,11 @@
 ![IMG](https://github.com/HappyLamb123/Foot-ROBOT/blob/master/img/ccmake.PNG?raw=true)
 Change the dir as the image below:
 ![IMG](https://github.com/HappyLamb123/Foot-ROBOT/blob/master/img/ccmake2.PNG?raw=true)
+
+* The final step of compiling is use:
+> make 
+command where you put your exe file
+
 * To **run** the code you should use command:
 > ./ < the name of your exe file> / < where you put your json file >
 
