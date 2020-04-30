@@ -16,9 +16,10 @@ Change the dir as the image below:
 * To run the code you should use command:
 > ./ < the name of your exe file> / < where you put your json file > 
 ![IMG](https://github.com/HappyLamb123/Foot-ROBOT/blob/master/img/run.PNG?raw=true)
+
 2.obj file and json file 
 
-If you don't want to modify the read file part in granula code, you should make a dir under:
+If you don't want to modify the read file part in granular code, you should make a dir under:
 > ~/CodingPlayground/Granular_testing/data/granular/
 
 and put your obj file and json file here.
