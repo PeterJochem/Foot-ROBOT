@@ -1,1 +1,1 @@
-#Instructions for running and compling granular code 
+# Instructions for running and compling granular code 
