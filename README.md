@@ -9,8 +9,10 @@
 > **ccmake .**
 
   and specify the dir as in Windows environment.
-  
+
 ![IMG](https://github.com/HappyLamb123/Foot-ROBOT/blob/master/img/ccmake.PNG?raw=true)
+Change the dir as the image below:
+![IMG](https://github.com/HappyLamb123/Foot-ROBOT/blob/master/img/ccmake2.PNG?raw=true)
 * To run the code you should use command:
 > ./ < the name of your exe file> / < where you put your json file > 
 
