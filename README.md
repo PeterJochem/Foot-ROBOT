@@ -10,7 +10,7 @@
 
   and specify the dir as in Windows environment.
   
-![IMG](https://github.com/HappyLamb123/Foot-ROBOT/img/ccmake2.png)
+![IMG](../img/ccmake2.png)
 * To run the code you should use command:
 > ./ < the name of your exe file> / < where you put your json file > 
 
