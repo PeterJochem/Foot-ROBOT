@@ -10,7 +10,7 @@
 
   and specify the dir as in Windows environment.
   
-![alt text](https://github.com/HappyLamb123/Foot-ROBOT/blob/master/img/ccmake2.png "Logo Title Text 1")
+![IMG](https://github.com/HappyLamb123/Foot-ROBOT/blob/master/img/ccmake2.png)
 * To run the code you should use command:
 > ./ < the name of your exe file> / < where you put your json file > 
 
