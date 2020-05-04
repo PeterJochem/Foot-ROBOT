@@ -9,10 +9,10 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 
-
 #include <iostream>
 #include <vector>
 #include <string>
+#include "chrono/physics/ChBodyEasy.h"
 #include "chrono/core/ChGlobal.h"
 #include "chrono_thirdparty/filesystem/path.h"
 #include "chrono/physics/ChSystemSMC.h"
@@ -62,7 +62,7 @@ void writeMeshFrames(std::ostringstream& outstream, ChBody& body, std::string ob
     outstream << mesh_scaling << "," << mesh_scaling << "," << mesh_scaling;
     outstream << "\n";
 }
-const double time_settle = 0.6;
+const double time_settle = 0.5;
 constexpr float F_CGS_TO_SI = 1e-5;
 int main(int argc, char* argv[]) {
 
@@ -83,8 +83,8 @@ int main(int argc, char* argv[]) {
     double fill_bottom = -params.box_Z / 2.0; // -200/2
     double fill_top = params.box_Z / 2.0;     // 200/4
 
-    chrono::utils::PDSampler<float> sampler(2.4f * params.sphere_radius);
-    // chrono::utils::HCPSampler<float> sampler(2.05 * params.sphere_radius);
+   // chrono::utils::PDSampler<float> sampler(2.4f * params.sphere_radius);
+    chrono::utils::HCPSampler<float> sampler(2.05 * params.sphere_radius);
 
     // leave a 4cm margin at edges of sampling
     ChVector<> hdims(params.box_X / 2 , params.box_Y / 2 , 0);
@@ -145,17 +145,20 @@ int main(int argc, char* argv[]) {
     gran_sys.set_static_friction_coeff_SPH2WALL(params.static_friction_coeffS2W);
     gran_sys.set_static_friction_coeff_SPH2MESH(params.static_friction_coeffS2M);
 
-    std::string mesh_filename(GetChronoDataFile("granular/demo_GRAN_ballcosim/sphere.obj"));
+    std::string mesh_filename(GetChronoDataFile("granular/demo_GRAN_plate/plate.obj"));
     std::vector<string> mesh_filenames(1, mesh_filename);
 
     std::vector<float3> mesh_translations(1, make_float3(0.f, 0.f, 0.f));
 
-    float ball_radius = 2.f;
-    std::vector<ChMatrix33<float>> mesh_rotscales(1, ChMatrix33<float>(ball_radius));
+    float ball_radius = 20.f;
+    float length = 3.81;
+    float width = 2.54;
+    float thickness = 0.64;
+    std::vector<ChMatrix33<float>> mesh_rotscales(1, ChMatrix33<float>(0.50));
 
-    float ball_density = params.sphere_density / 100.f;
-    float ball_mass = (float)(4.f * CH_C_PI * ball_radius * ball_radius * ball_radius * ball_density / 3.f);
-    std::vector<float> mesh_masses(1, ball_mass);
+    float plate_density = 2.7;//params.sphere_density / 100.f;
+    float plate_mass = (float)length * width * thickness * plate_density ;
+    std::vector<float> mesh_masses(1, plate_mass);
 
     apiSMC_TriMesh.load_meshes(mesh_filenames, mesh_rotscales, mesh_translations, mesh_masses);
 
@@ -171,7 +174,7 @@ int main(int argc, char* argv[]) {
     gran_sys.initialize();
 
     // Create rigid ball_body simulation
-    ChSystemSMC sys_ball;
+    /*ChSystemSMC sys_ball;
     sys_ball.SetContactForceModel(ChSystemSMC::ContactForceModel::Hooke);
     sys_ball.SetTimestepperType(ChTimestepper::Type::EULER_EXPLICIT);
     sys_ball.Set_G_acc(ChVector<>(0, 0, -980));
@@ -184,7 +187,22 @@ int main(int argc, char* argv[]) {
     ball_body->SetInertiaXX(ChVector<>(inertia, inertia, inertia));
     ball_body->SetPos(ball_initial_pos);
     ball_body->SetBodyFixed(true);
-    sys_ball.AddBody(ball_body);
+    sys_ball.AddBody(ball_body);*/
+    ChSystemSMC sys_plate;
+    sys_plate.SetContactForceModel(ChSystemSMC::ContactForceModel::Hooke);
+    sys_plate.SetTimestepperType(ChTimestepper::Type::EULER_EXPLICIT);
+    sys_plate.Set_G_acc(ChVector<>(0, 0, -980));
+  //  auto rigid_plate = std::make_shared<ChBodyEasyBox>(length, width, thickness, plate_density, true, true);
+    std::shared_ptr<ChBody> rigid_plate(sys_plate.NewBody());
+    rigid_plate->SetMass(plate_mass);
+    rigid_plate->SetPos(ChVector<>(0,0,15));
+    float inertiax = 1 / 12 * plate_mass*(thickness* thickness +width*width);
+    float inertiay = 1 / 12 * plate_mass * (thickness * thickness + length * length);
+    float inertiaz = 1 / 12 * plate_mass * (length * length + width * width);
+    rigid_plate->SetInertiaXX(ChVector<>(inertiax, inertiay, inertiaz));
+    //sys_plate.AddBody(rigid_plate);
+    rigid_plate->SetBodyFixed(true);
+    sys_plate.AddBody(rigid_plate); 
     unsigned int out_fps = 50;
     std::cout << "Rendering at " << out_fps << "FPS" << std::endl;
 
@@ -194,69 +212,82 @@ int main(int argc, char* argv[]) {
     unsigned int curr_step = 0;
     gran_sys.disableMeshCollision();
     clock_t start = std::clock();
-    bool box_released = false;
+    bool plate_released = false;
     double max_z = gran_sys.get_max_z();
     for (double t = 0; t < (double)params.time_end; t += iteration_step, curr_step++) {
 	     
-         if (t >= time_settle && box_released==false ) {
+         if (t >= time_settle && plate_released==false ) {
              gran_sys.enableMeshCollision();
 
-             ball_body->SetBodyFixed(false);
+             rigid_plate->SetBodyFixed(false);
              max_z=gran_sys.get_max_z();
-             ball_body->SetPos(ChVector<>(0, 0, max_z + params.sphere_radius + ball_radius));
-             ball_body->SetPos_dt(ChVector<>(0, 0, -3));
-             box_released = true;
+             rigid_plate->SetPos(ChVector<>(0, 0, max_z -0.96));
+             rigid_plate->SetPos_dt(ChVector<>(-0.707, 0, -0.707));
+           //  rigid_plate->SetRot(Q_from_AngAxis(CH_C_PI/6, VECT_Y));
+             rigid_plate->SetRot(ChQuaternion<>(0.866, 0, 0.5, 0));
+             plate_released = true;
              std::cout << "Releasing ball" << std::endl;
          }
-         else if(t >=time_settle&& box_released==true ) {
-             ball_body->SetPos_dt(ChVector<>(0, 0, -3));
-             std::cout << "Ball intruding" << std::endl;
+         else if(t >=time_settle&& plate_released==true ) {
+             rigid_plate->SetPos_dt(ChVector<>(-0.707, 0, -0.707));
+          //   rigid_plate->SetRot(Q_from_AngAxis(CH_C_PI/6, VECT_Y));
+             rigid_plate->SetRot(ChQuaternion<>(0.866, 0, 0.5, 0));
+             std::cout << "Plate intruding" << std::endl;
          }
-        auto ball_pos = ball_body->GetPos();
-        auto ball_rot = ball_body->GetRot();
+         
+        auto plate_pos = rigid_plate->GetPos();
+       // auto plate_rot = rigid_plate->GetRot();
+        /*
+        auto plate_vel = rigid_plate->GetPos_dt();
+        auto plate_ang_vel = rigid_plate->GetWvel_loc();
+        plate_ang_vel = rigid_plate->GetRot().GetInverse().Rotate(plate_ang_vel);
+        */
+        meshPosRot[0] = plate_pos.x();
+        meshPosRot[1] = plate_pos.y();
+        meshPosRot[2] = plate_pos.z();
+        meshPosRot[3] = 0.866;// plate_rot[0];
+        meshPosRot[4] = 0;// plate_rot[1];
+        meshPosRot[5] = 0.5;//plate_rot[2];
+        meshPosRot[6] = 0;// plate_rot[3];
 
-        auto ball_vel = ball_body->GetPos_dt();
-        auto ball_ang_vel = ball_body->GetWvel_loc();
-        ball_ang_vel = ball_body->GetRot().GetInverse().Rotate(ball_ang_vel);
-
-        meshPosRot[0] = ball_pos.x();
-        meshPosRot[1] = ball_pos.y();
-        meshPosRot[2] = ball_pos.z();
-        meshPosRot[3] = ball_rot[0];
-        meshPosRot[4] = ball_rot[1];
-        meshPosRot[5] = ball_rot[2];
-        meshPosRot[6] = ball_rot[3];
-
-        meshVel[0] = (float)ball_vel.x();
-        meshVel[1] = (float)ball_vel.y();
-        meshVel[2] = (float)ball_vel.z();
-        meshVel[3] = (float)ball_ang_vel.x();
-        meshVel[4] = (float)ball_ang_vel.y();
-        meshVel[5] = (float)ball_ang_vel.z();
+        meshVel[0] = (float)-0.707;//plate_vel.x();
+        meshVel[1] = (float)0;// plate_vel.y();
+        meshVel[2] = (float)-0.707; //plate_vel.z();
+        meshVel[3] = (float)0;// plate_ang_vel.x();
+        meshVel[4] = (float)0;// plate_ang_vel.y();
+        meshVel[5] = (float)0;// plate_ang_vel.z();
       //  ball_body->SetPos_dt(ChVector<>(0,0,-10)); 
         gran_sys.meshSoup_applyRigidBodyMotion(meshPosRot, meshVel);
 
         gran_sys.advance_simulation(iteration_step);
-        sys_ball.DoStepDynamics(iteration_step);
+        sys_plate.DoStepDynamics(iteration_step);
 
-        float ball_force[6];
-        gran_sys.collectGeneralizedForcesOnMeshSoup(ball_force);
+        float plate_force[6];
+        gran_sys.collectGeneralizedForcesOnMeshSoup(plate_force);
 
-        ball_body->Empty_forces_accumulators();
-        ball_body->Accumulate_force(ChVector<>(ball_force[0], ball_force[1], ball_force[2]), ball_pos, false);
-        ball_body->Accumulate_torque(ChVector<>(ball_force[3], ball_force[4], ball_force[5]), false);
-        std::cout << ball_body->Get_accumulated_force()[0] * F_CGS_TO_SI << ','
-                  << ball_body->Get_accumulated_force()[1] * F_CGS_TO_SI << ','
-                  << ball_body->Get_accumulated_force()[2] * F_CGS_TO_SI <<','<<gran_sys.get_max_z()<< std::endl;
-        out_as << t << "," << ball_body->Get_accumulated_force()[0] * F_CGS_TO_SI << ","
-               << ball_body->Get_accumulated_force()[1] * F_CGS_TO_SI<<","
-               << ball_body->Get_accumulated_force()[2] * F_CGS_TO_SI
+        rigid_plate->Empty_forces_accumulators();
+        rigid_plate->Accumulate_force(ChVector<>(plate_force[0], plate_force[1], plate_force[2]), plate_pos, false);
+        rigid_plate->Accumulate_torque(ChVector<>(plate_force[3], plate_force[4], plate_force[5]), false);
+       std::cout <<rigid_plate->GetPos()[2]<<','<< rigid_plate->Get_accumulated_force()[0] * F_CGS_TO_SI << ','
+                  << rigid_plate->Get_accumulated_force()[1] * F_CGS_TO_SI << ','
+                  << rigid_plate->Get_accumulated_force()[2] * F_CGS_TO_SI <<','<<gran_sys.get_max_z()<<','<<gran_sys.getNumSpheres()<< std::endl;
+        out_as << t << "," << rigid_plate->Get_accumulated_force()[0] * F_CGS_TO_SI << ","
+               << rigid_plate->Get_accumulated_force()[1] * F_CGS_TO_SI<<","
+               << rigid_plate->Get_accumulated_force()[2] * F_CGS_TO_SI
                << '\n';
-        out_pos << t << "," << ball_body->GetPos()[0] << "," << ball_body->GetPos()[1] << ","
-            << ball_body->GetPos()[2] <<","<<gran_sys.get_max_z()<< "\n";
-/*        if (curr_step % out_steps == 0) {
+              
+    /*    std::cout <<t<<','<< rigid_plate->GetPos()[2] << ',' << plate_force[0]* F_CGS_TO_SI << ','
+            << plate_force[1] * F_CGS_TO_SI << ','
+            << plate_force[2] * F_CGS_TO_SI << ',' << gran_sys.get_max_z() << ',' << gran_sys.getNumSpheres() << std::endl;
+        out_as << t << "," << plate_force[0] * F_CGS_TO_SI << ","
+            << plate_force[1] * F_CGS_TO_SI << ","
+            << plate_force[2] * F_CGS_TO_SI
+            << '\n';*/
+        out_pos << t << "," << rigid_plate->GetPos()[0] << "," << rigid_plate->GetPos()[1] << ","
+            << rigid_plate->GetPos()[2] <<","<<gran_sys.get_max_z()<<"\n";
+        if (curr_step % out_steps == 0) {
             std::cout << "Rendering frame " << currframe << std::endl;
-            char filename[100];
+       /*     char filename[100];
             sprintf(filename, "%s/step%06d", params.output_dir.c_str(), currframe++);
             gran_sys.writeFile(std::string(filename));
 
@@ -265,9 +296,8 @@ int main(int argc, char* argv[]) {
             std::ostringstream outstream;
             outstream << "mesh_name,dx,dy,dz,x1,x2,x3,y1,y2,y3,z1,z2,z3,sx,sy,sz\n";
             writeMeshFrames(outstream, *ball_body, mesh_filename, ball_radius);
-            meshfile << outstream.str();
-  
-   	   }*/
+            meshfile << outstream.str();*/
+        }
     }
 
     clock_t end = std::clock();
