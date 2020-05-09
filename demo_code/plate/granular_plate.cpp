@@ -8,6 +8,7 @@
 // in the LICENSE file at the top level of the distribution and at
 // http://projectchrono.org/license-chrono.txt.
 //
+//This demo simulate a plate intrude into a box area of granular materials with certain attack and intrusion angles
 
 #include <iostream>
 #include <vector>
@@ -221,22 +222,22 @@ int main(int argc, char* argv[]) {
 
              rigid_plate->SetBodyFixed(false);
              max_z=gran_sys.get_max_z();
-             rigid_plate->SetPos(ChVector<>(0, 0, max_z -0.96));
-             rigid_plate->SetPos_dt(ChVector<>(-0.707, 0, -0.707));
-           //  rigid_plate->SetRot(Q_from_AngAxis(CH_C_PI/6, VECT_Y));
-             rigid_plate->SetRot(ChQuaternion<>(0.866, 0, 0.5, 0));
+             rigid_plate->SetPos(ChVector<>(0, 0, max_z +1.4));
+             rigid_plate->SetPos_dt(ChVector<>(-3*0.707, 0, -3*0.707));
+             rigid_plate->SetRot(Q_from_AngAxis(CH_C_PI/4, VECT_Y));
+          //   rigid_plate->SetRot(ChQuaternion<>(0.707, 0, 0.707, 0));
              plate_released = true;
              std::cout << "Releasing ball" << std::endl;
          }
          else if(t >=time_settle&& plate_released==true ) {
-             rigid_plate->SetPos_dt(ChVector<>(-0.707, 0, -0.707));
-          //   rigid_plate->SetRot(Q_from_AngAxis(CH_C_PI/6, VECT_Y));
-             rigid_plate->SetRot(ChQuaternion<>(0.866, 0, 0.5, 0));
+             rigid_plate->SetPos_dt(ChVector<>(-3*0.707, 0, -3*0.707));
+             rigid_plate->SetRot(Q_from_AngAxis(CH_C_PI/4, VECT_Y));
+          //   rigid_plate->SetRot(ChQuaternion<>(0.707, 0, 0.707, 0));
              std::cout << "Plate intruding" << std::endl;
          }
          
         auto plate_pos = rigid_plate->GetPos();
-       // auto plate_rot = rigid_plate->GetRot();
+        auto plate_rot = rigid_plate->GetRot();
         /*
         auto plate_vel = rigid_plate->GetPos_dt();
         auto plate_ang_vel = rigid_plate->GetWvel_loc();
@@ -245,14 +246,14 @@ int main(int argc, char* argv[]) {
         meshPosRot[0] = plate_pos.x();
         meshPosRot[1] = plate_pos.y();
         meshPosRot[2] = plate_pos.z();
-        meshPosRot[3] = 0.866;// plate_rot[0];
-        meshPosRot[4] = 0;// plate_rot[1];
-        meshPosRot[5] = 0.5;//plate_rot[2];
-        meshPosRot[6] = 0;// plate_rot[3];
+        meshPosRot[3] = plate_rot[0];
+        meshPosRot[4] = plate_rot[1];
+        meshPosRot[5] = plate_rot[2];
+        meshPosRot[6] = plate_rot[3];
 
-        meshVel[0] = (float)-0.707;//plate_vel.x();
+        meshVel[0] = (float)-3*0.707;//plate_vel.x();
         meshVel[1] = (float)0;// plate_vel.y();
-        meshVel[2] = (float)-0.707; //plate_vel.z();
+        meshVel[2] = (float)-3*0.707; //plate_vel.z();
         meshVel[3] = (float)0;// plate_ang_vel.x();
         meshVel[4] = (float)0;// plate_ang_vel.y();
         meshVel[5] = (float)0;// plate_ang_vel.z();
@@ -268,21 +269,21 @@ int main(int argc, char* argv[]) {
         rigid_plate->Empty_forces_accumulators();
         rigid_plate->Accumulate_force(ChVector<>(plate_force[0], plate_force[1], plate_force[2]), plate_pos, false);
         rigid_plate->Accumulate_torque(ChVector<>(plate_force[3], plate_force[4], plate_force[5]), false);
-       std::cout <<rigid_plate->GetPos()[2]<<','<< rigid_plate->Get_accumulated_force()[0] * F_CGS_TO_SI << ','
+ /*       std::cout <<rigid_plate->GetPos()[2]<<','<< rigid_plate->Get_accumulated_force()[0] * F_CGS_TO_SI << ','
                   << rigid_plate->Get_accumulated_force()[1] * F_CGS_TO_SI << ','
                   << rigid_plate->Get_accumulated_force()[2] * F_CGS_TO_SI <<','<<gran_sys.get_max_z()<<','<<gran_sys.getNumSpheres()<< std::endl;
         out_as << t << "," << rigid_plate->Get_accumulated_force()[0] * F_CGS_TO_SI << ","
                << rigid_plate->Get_accumulated_force()[1] * F_CGS_TO_SI<<","
                << rigid_plate->Get_accumulated_force()[2] * F_CGS_TO_SI
                << '\n';
-              
-    /*    std::cout <<t<<','<< rigid_plate->GetPos()[2] << ',' << plate_force[0]* F_CGS_TO_SI << ','
+               */
+        std::cout <<t<<','<< rigid_plate->GetPos()[2] << ',' << plate_force[0]* F_CGS_TO_SI << ','
             << plate_force[1] * F_CGS_TO_SI << ','
             << plate_force[2] * F_CGS_TO_SI << ',' << gran_sys.get_max_z() << ',' << gran_sys.getNumSpheres() << std::endl;
         out_as << t << "," << plate_force[0] * F_CGS_TO_SI << ","
             << plate_force[1] * F_CGS_TO_SI << ","
             << plate_force[2] * F_CGS_TO_SI
-            << '\n';*/
+            << '\n';
         out_pos << t << "," << rigid_plate->GetPos()[0] << "," << rigid_plate->GetPos()[1] << ","
             << rigid_plate->GetPos()[2] <<","<<gran_sys.get_max_z()<<"\n";
         if (curr_step % out_steps == 0) {
