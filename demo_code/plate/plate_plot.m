@@ -1,5 +1,6 @@
 clc
 clear
+init_env();
 force_address='output_plate_forces.csv';
 position_address='output_plate_positions.csv';
 total_data_force=csvread(force_address);
@@ -47,7 +48,7 @@ for i= 1:6
     plot(dep,sx,'LineWidth',4);
     hold on
     plot(dep,sz,'LineWidth',4);
-    title("\gamma: "+ gamma + " \beta: "+beta);
+    title("$\gamma$: "+ gamma + " $\beta$: "+beta);
     xlabel('depth (cm)','FontSize',15);
     ylabel('Stress (N/cm^2)','FontSize',15);
     legend('Stress x','Strees z','Fitted-stress x','Fitted-stress z','FontSize',10);
