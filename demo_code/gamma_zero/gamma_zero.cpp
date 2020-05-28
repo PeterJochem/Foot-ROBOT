@@ -209,8 +209,8 @@ int main(int argc, char* argv[]) {
     double thorizontal[10];
     int k = 0;
     for (k = 0; k < 10; k++) {
-        tdown[k - 1] = time_settle + 0.7 * k;
-        thorizontal[k - 1] = time_settle + intrude_period + 0.7 * k;
+        tdown[k] = time_settle + 0.7 * k;
+        thorizontal[k] = time_settle + intrude_period + 0.7 * k;
     }
     double vdown = -5.0;
     double timestate = 0;
@@ -218,7 +218,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < 1; i++) {
         // define the velocity, body orientations for the plate
         double gamma = start_gamma - resolution * i;
-        double belta = -CH_C_PI / 6;
+        double belta = CH_C_PI / 6;
         std::cout << "gamma=" << gamma * 180 / CH_C_PI << "belta=" << belta * 180 / CH_C_PI << std::endl;
         out_as << gamma * 180 / CH_C_PI << ',' << belta * 180 / CH_C_PI << '\n';
         out_pos << gamma * 180 / CH_C_PI << ',' << belta * 180 / CH_C_PI << '\n';
@@ -251,17 +251,19 @@ int main(int argc, char* argv[]) {
                // std::cout << "Plate intruding" << std::endl;
                 
             }
-            if (t >= tdown[j] && t <= thorizontal[j]) {
+            if (t > tdown[i] && t <= thorizontal[j]) {
                 rigid_plate->SetPos_dt(ChVector<>(0, 0, vdown));
                 rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
             }
-            if (t >= thorizontal[j] && t <= tdown[j + 1]) {
+            if (t > thorizontal[j] && t <= tdown[j+1]) {
                 rigid_plate->SetPos_dt(ChVector<>(vx, 0, vz));
                 rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
-                if (t == tdown[j + 1]) {
-                    j++;
+                if (tdown[j + 1]-t<0.000001) {
+                    j = j + 1;
                 }
             }
+            
+            
             
             auto plate_pos = rigid_plate->GetPos();
             auto plate_rot = rigid_plate->GetRot();
