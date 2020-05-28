@@ -64,8 +64,6 @@ void writeMeshFrames(std::ostringstream& outstream, ChBody& body, std::string ob
     outstream << "\n";
 }
 const double time_settle = 0.5;
-const double time_intrude = 1.0;
-const double time_pre = time_settle + time_intrude;
 constexpr float F_CGS_TO_SI = 1e-5;
 int main(int argc, char* argv[]) {
 
@@ -80,7 +78,7 @@ int main(int argc, char* argv[]) {
     float iteration_step = params.step_size;
 
     ChGranularChronoTriMeshAPI apiSMC_TriMesh(params.sphere_radius, params.sphere_density,
-                                              make_float3(params.box_X, params.box_Y, params.box_Z));
+        make_float3(params.box_X, params.box_Y, params.box_Z));
 
     ChSystemGranularSMC_trimesh& gran_sys = apiSMC_TriMesh.getGranSystemSMC_TriMesh();
     double fill_bottom = -params.box_Z / 2.0; // -200/2
@@ -90,7 +88,7 @@ int main(int argc, char* argv[]) {
     chrono::utils::HCPSampler<float> sampler(2.05 * params.sphere_radius);
 
     // leave a 4cm margin at edges of sampling
-    ChVector<> hdims(params.box_X / 2-0.5 , params.box_Y / 2-0.5 , 0);
+    ChVector<> hdims(params.box_X / 2, params.box_Y / 2, 0);
     ChVector<> center(0, 0, fill_bottom + 2.0 * params.sphere_radius);
     std::vector<ChVector<float>> body_points;
 
@@ -107,7 +105,7 @@ int main(int argc, char* argv[]) {
 
     gran_sys.set_BD_Fixed(true);
     std::function<double3(float)> pos_func_wave = [&params](float t) {
-        double3 pos = {0, 0, 0};
+        double3 pos = { 0, 0, 0 };
 
         double t0 = 0.5;
         double freq = CH_C_PI / 4;
@@ -160,7 +158,7 @@ int main(int argc, char* argv[]) {
     std::vector<ChMatrix33<float>> mesh_rotscales(1, ChMatrix33<float>(0.50));
 
     float plate_density = 2.7;//params.sphere_density / 100.f;
-    float plate_mass = (float)length * width * thickness * plate_density ;
+    float plate_mass = (float)length * width * thickness * plate_density;
     std::vector<float> mesh_masses(1, plate_mass);
 
     apiSMC_TriMesh.load_meshes(mesh_filenames, mesh_rotscales, mesh_translations, mesh_masses);
@@ -176,22 +174,22 @@ int main(int argc, char* argv[]) {
 
     gran_sys.initialize();
 
-// create a plate for simulation
+    // create a plate for simulation
     ChSystemSMC sys_plate;
     sys_plate.SetContactForceModel(ChSystemSMC::ContactForceModel::Hooke);
     sys_plate.SetTimestepperType(ChTimestepper::Type::EULER_EXPLICIT);
     sys_plate.Set_G_acc(ChVector<>(0, 0, -980));
-  //  auto rigid_plate = std::make_shared<ChBodyEasyBox>(length, width, thickness, plate_density, true, true);
+    //  auto rigid_plate = std::make_shared<ChBodyEasyBox>(length, width, thickness, plate_density, true, true);
     std::shared_ptr<ChBody> rigid_plate(sys_plate.NewBody());
     rigid_plate->SetMass(plate_mass);
-    rigid_plate->SetPos(ChVector<>(0,0,12));
-    float inertiax = 1 / 12 * plate_mass*(thickness* thickness +width*width);
+    rigid_plate->SetPos(ChVector<>(10, 0, -12));
+    float inertiax = 1 / 12 * plate_mass * (thickness * thickness + width * width);
     float inertiay = 1 / 12 * plate_mass * (thickness * thickness + length * length);
     float inertiaz = 1 / 12 * plate_mass * (length * length + width * width);
     rigid_plate->SetInertiaXX(ChVector<>(inertiax, inertiay, inertiaz));
     //sys_plate.AddBody(rigid_plate);
     rigid_plate->SetBodyFixed(true);
-    sys_plate.AddBody(rigid_plate); 
+    sys_plate.AddBody(rigid_plate);
     unsigned int out_fps = 50;
     std::cout << "Rendering at " << out_fps << "FPS" << std::endl;
 
@@ -202,28 +200,35 @@ int main(int argc, char* argv[]) {
     gran_sys.disableMeshCollision();
     clock_t start = std::clock();
     bool plate_released = false;
-    bool intrude_state = false;
     double max_z = gran_sys.get_max_z();
-    double start_gamma = -0.102*CH_C_PI;
+    double start_gamma = CH_C_PI * 0;
     double resolution = start_gamma / 10;
-    double v_intrude = -15.0;
-    
+    double intrude_period = 0.2;
+    double tdown[10];
+
+    double thorizontal[10];
+    int k = 0;
+    for (k = 0; k < 10; k++) {
+        tdown[k - 1] = time_settle + 0.7 * k;
+        thorizontal[k - 1] = time_settle + intrude_period + 0.7 * k;
+    }
+    double vdown = -5.0;
+    double timestate = 0;
+    int j = 0;  //define a counter for zero intruding 
     for (int i = 0; i < 1; i++) {
         // define the velocity, body orientations for the plate
-        double gamma = start_gamma-resolution*i;
-        double belta =-CH_C_PI / 3;
-        std::cout<< "gamma="  << gamma * 180 / CH_C_PI << "belta=" << belta * 180 / CH_C_PI << std::endl;
-        out_as << gamma*180/CH_C_PI << ',' << belta * 180 / CH_C_PI << '\n';
-        out_pos << gamma * 180 / CH_C_PI << ',' <<  belta * 180 / CH_C_PI << '\n';
-        double vx = -cos(gamma) * 4;
-        double vz = -sin(gamma) * 4;
-        
+        double gamma = start_gamma - resolution * i;
+        double belta = -CH_C_PI / 6;
+        std::cout << "gamma=" << gamma * 180 / CH_C_PI << "belta=" << belta * 180 / CH_C_PI << std::endl;
+        out_as << gamma * 180 / CH_C_PI << ',' << belta * 180 / CH_C_PI << '\n';
+        out_pos << gamma * 180 / CH_C_PI << ',' << belta * 180 / CH_C_PI << '\n';
+        double vx = -cos(gamma) * 5;
+        double vz = -sin(gamma) * 5;
         double start_height = length / 2 * sin(belta);
         int counter = 0;
-        rigid_plate->SetPos(ChVector<>(10, 0, 12));
-	    rigid_plate->SetBodyFixed(true);
-	    plate_released=false;
-        intrude_state = false;
+        rigid_plate->SetPos(ChVector<>(15, 0, 12));
+        rigid_plate->SetBodyFixed(true);
+        plate_released = false;
         gran_sys.disableMeshCollision();
         for (double t = 0; t < (double)params.time_end; t += iteration_step, curr_step++) {
 
@@ -232,25 +237,32 @@ int main(int argc, char* argv[]) {
 
                 rigid_plate->SetBodyFixed(false);
                 max_z = gran_sys.get_max_z();
-               // rigid_plate->SetPos(ChVector<>(0, 0, max_z + start_height));
-                rigid_plate->SetPos(ChVector<>(10, 0, 12));
-                rigid_plate->SetPos_dt(ChVector<>(0, 0, v_intrude));
+                rigid_plate->SetPos(ChVector<>(15, 0, max_z + start_height));
+                rigid_plate->SetPos_dt(ChVector<>(vx, 0, vz));
                 rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
                 //   rigid_plate->SetRot(ChQuaternion<>(0.707, 0, 0.707, 0));
                 plate_released = true;
                 std::cout << "Releasing ball" << std::endl;
             }
-            else if (t >= time_settle && t < (time_settle + time_intrude)&&plate_released == true) {
-                rigid_plate->SetPos_dt(ChVector<>(0, 0, v_intrude));
+            else if (t >= time_settle && plate_released == true) {
+                rigid_plate->SetPos_dt(ChVector<>(vx, 0, vz));
                 rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
                 //   rigid_plate->SetRot(ChQuaternion<>(0.707, 0, 0.707, 0));
                // std::cout << "Plate intruding" << std::endl;
+                
             }
-            else if (t >= (time_settle + time_intrude) && plate_released == true) {
-               // intrude_state = true;
-                rigid_plate->SetPos_dt(ChVector<>(vx, 0, vz));
+            if (t >= tdown[j] && t <= thorizontal[j]) {
+                rigid_plate->SetPos_dt(ChVector<>(0, 0, vdown));
                 rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
             }
+            if (t >= thorizontal[j] && t <= tdown[j + 1]) {
+                rigid_plate->SetPos_dt(ChVector<>(vx, 0, vz));
+                rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
+                if (t == tdown[j + 1]) {
+                    j++;
+                }
+            }
+            
             auto plate_pos = rigid_plate->GetPos();
             auto plate_rot = rigid_plate->GetRot();
             /*
