@@ -182,7 +182,7 @@ int main(int argc, char* argv[]) {
     //  auto rigid_plate = std::make_shared<ChBodyEasyBox>(length, width, thickness, plate_density, true, true);
     std::shared_ptr<ChBody> rigid_plate(sys_plate.NewBody());
     rigid_plate->SetMass(plate_mass);
-    rigid_plate->SetPos(ChVector<>(10, 0, -12));
+    rigid_plate->SetPos(ChVector<>(15, 0, 12));
     float inertiax = 1 / 12 * plate_mass * (thickness * thickness + width * width);
     float inertiay = 1 / 12 * plate_mass * (thickness * thickness + length * length);
     float inertiaz = 1 / 12 * plate_mass * (length * length + width * width);
@@ -209,8 +209,8 @@ int main(int argc, char* argv[]) {
     double thorizontal[10];
     int k = 0;
     for (k = 0; k < 10; k++) {
-        tdown[k] = time_settle + 0.7 * k;
-        thorizontal[k] = time_settle + intrude_period + 0.7 * k;
+        tdown[k ] = time_settle + 1.2 * k;
+        thorizontal[k ] = time_settle + intrude_period + 1.2 * k;
     }
     double vdown = -5.0;
     double timestate = 0;
@@ -218,12 +218,12 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < 1; i++) {
         // define the velocity, body orientations for the plate
         double gamma = start_gamma - resolution * i;
-        double belta = CH_C_PI / 6;
+        double belta =-CH_C_PI / 3;
         std::cout << "gamma=" << gamma * 180 / CH_C_PI << "belta=" << belta * 180 / CH_C_PI << std::endl;
         out_as << gamma * 180 / CH_C_PI << ',' << belta * 180 / CH_C_PI << '\n';
         out_pos << gamma * 180 / CH_C_PI << ',' << belta * 180 / CH_C_PI << '\n';
-        double vx = -cos(gamma) * 5;
-        double vz = -sin(gamma) * 5;
+        double vx = -cos(gamma) * 2;
+        double vz = -sin(gamma) * 2;
         double start_height = length / 2 * sin(belta);
         int counter = 0;
         rigid_plate->SetPos(ChVector<>(15, 0, 12));
@@ -237,7 +237,7 @@ int main(int argc, char* argv[]) {
 
                 rigid_plate->SetBodyFixed(false);
                 max_z = gran_sys.get_max_z();
-                rigid_plate->SetPos(ChVector<>(15, 0, max_z + start_height));
+                rigid_plate->SetPos(ChVector<>(15, 0, max_z - start_height));
                 rigid_plate->SetPos_dt(ChVector<>(vx, 0, vz));
                 rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
                 //   rigid_plate->SetRot(ChQuaternion<>(0.707, 0, 0.707, 0));
@@ -251,19 +251,19 @@ int main(int argc, char* argv[]) {
                // std::cout << "Plate intruding" << std::endl;
                 
             }
-            if (t > tdown[i] && t <= thorizontal[j]) {
+            if (t > tdown[j] && t <= thorizontal[j]) {
                 rigid_plate->SetPos_dt(ChVector<>(0, 0, vdown));
                 rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
             }
-            if (t > thorizontal[j] && t <= tdown[j+1]) {
+            if (t > thorizontal[j] && t <= tdown[j + 1]) {
                 rigid_plate->SetPos_dt(ChVector<>(vx, 0, vz));
                 rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
-                if (tdown[j + 1]-t<0.000001) {
-                    j = j + 1;
+                if ( tdown[j + 1]-t<0.000033) {
+                    j=j+1;
+		    std::cout<<j<<std::endl;
                 }
+		
             }
-            
-            
             
             auto plate_pos = rigid_plate->GetPos();
             auto plate_rot = rigid_plate->GetRot();

@@ -1,0 +1,45 @@
+{
+    "sphere_radius": 0.37,
+    "sphere_density": 2.6,
+    "box_X": 24,
+    "box_Y": 22,
+    "box_Z": 18,
+    "step_size": 1e-5,
+    "time_end": 4.5,
+
+    "grav_X": 0,
+    "grav_Y": 0,
+    "grav_Z": -980,
+
+    "normalStiffS2S": 1e6,
+    "normalStiffS2W": 1e6,
+    "normalStiffS2M": 1e6,
+
+    "normalDampS2S": 6e3,
+    "normalDampS2W": 6e3,
+    "normalDampS2M": 6e3,
+
+    "tangentStiffS2S": 1e6,
+    "tangentStiffS2W": 1e6,
+    "tangentStiffS2M": 1e6,
+
+    "tangentDampS2S": 0,
+    "tangentDampS2W": 0,
+    "tangentDampS2M": 0,
+
+    "static_friction_coeffS2S": 0.63,
+    "static_friction_coeffS2W": 0.63,
+    "static_friction_coeffS2M": 0.63,
+
+    "cohesion_ratio": 0,
+    "adhesion_ratio_s2w": 0,
+    "adhesion_ratio_s2m": 0,
+
+    "verbose": 0,
+
+    "psi_T": 32,
+    "psi_L": 16,
+    
+    "output_dir": "ballcosim",
+    "write_mode": "csv"
+}
