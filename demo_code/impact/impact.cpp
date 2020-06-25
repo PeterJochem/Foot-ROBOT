@@ -69,6 +69,7 @@ int main(int argc, char* argv[]) {
 
     std::ofstream out_as("output_plate_forces.csv");
     std::ofstream out_pos("output_plate_positions.csv");
+    std::ofstream out_vel("output_plate_velocities.csv");
     sim_param_holder params;
     if (argc != 2 || ParseJSON(argv[1], params) == false) {
         ShowUsage(argv[0]);
@@ -152,12 +153,12 @@ int main(int argc, char* argv[]) {
     std::vector<float3> mesh_translations(1, make_float3(0.f, 0.f, 0.f));
 
     float ball_radius = 20.f;
-    float length = 5;
-    float width = 5;
+    float length = 5.0;
+    float width = 5.0;
     float thickness = 0.5;
     std::vector<ChMatrix33<float>> mesh_rotscales(1, ChMatrix33<float>(0.50));
 
-    float plate_density = 2.7;//params.sphere_density / 100.f;
+    float plate_density = 80;//params.sphere_density / 100.f;
     float plate_mass = (float)length * width * thickness * plate_density ;
     std::vector<float> mesh_masses(1, plate_mass);
 
@@ -183,13 +184,22 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<ChBody> rigid_plate(sys_plate.NewBody());
     rigid_plate->SetMass(plate_mass);
     rigid_plate->SetPos(ChVector<>(0,0,15));
-    float inertiax = 1 / 12 * plate_mass*(thickness* thickness +width*width);
-    float inertiay = 1 / 12 * plate_mass * (thickness * thickness + length * length);
-    float inertiaz = 1 / 12 * plate_mass * (length * length + width * width);
+    double inertiax = 1.0 / 12.0 * plate_mass*(thickness* thickness +width*width);
+    double inertiay = 1.0 / 12.0 * plate_mass * (thickness * thickness + length * length);
+    double inertiaz = 1.0 / 12.0 * plate_mass * (length * length + width * width);
     rigid_plate->SetInertiaXX(ChVector<>(inertiax, inertiay, inertiaz));
-    //sys_plate.AddBody(rigid_plate);
     rigid_plate->SetBodyFixed(true);
     sys_plate.AddBody(rigid_plate); 
+    //create a reference body that the plate can move vertically
+    auto ref_body = chrono_types::make_shared<ChBody>();
+    sys_plate.AddBody(ref_body);
+    ref_body->SetBodyFixed(true);
+    ref_body->SetCollide(false);
+    ref_body->SetPos(ChVector<>(0, 0, 0));
+    auto my_Link_reffoot = std::make_shared<ChLinkLockPrismatic>();
+    my_Link_reffoot->Initialize(ref_body, rigid_plate, ChCoordsys<>(ChVector<>(0, 0,0), Q_from_AngZ(0)));
+    sys_plate.AddLink(my_Link_reffoot);
+
     unsigned int out_fps = 50;
     std::cout << "Rendering at " << out_fps << "FPS" << std::endl;
 
@@ -197,67 +207,75 @@ int main(int argc, char* argv[]) {
 
     int currframe = 0;
     unsigned int curr_step = 0;
+
     gran_sys.disableMeshCollision();
     clock_t start = std::clock();
+
+
+    // the state of the plate, flase means the plate is fixed while true means the plate has been released
     bool plate_released = false;
     double max_z = gran_sys.get_max_z();
     double start_gamma = CH_C_PI_2;
     double resolution = start_gamma / 10;
-  // for (int i = 0; i < 10; i++) {
-        // define the velocity, body orientations for the plate
     double gamma = CH_C_PI/2;
     double belta = 0;
-    std::cout<< "gamma=" << ',' << gamma * 180 / CH_C_PI << ',' << "belta=" << belta * 180 / CH_C_PI << std::endl;
-    out_as << "gamma" << ',' << gamma*180/CH_C_PI << ',' << "belta" << belta * 180 / CH_C_PI << '\n';
-    out_pos << "gamma" << ',' << gamma * 180 / CH_C_PI << ',' << "belta" << belta * 180 / CH_C_PI << '\n';
-    double vz = -5.0;
+    // the initial z direciton speed of the plate
+    double vz=-10.0;
+
+    std::cout << vz << std::endl;
+    out_as << vz/100 << '\n';
+    out_pos << vz/100 << '\n';  
+
     double start_height = length / 2 * sin(belta);
+
     int counter = 0;
-    rigid_plate->SetPos(ChVector<>(0, 0, 15));
+    rigid_plate->SetPos(ChVector<>(0, 0, 20));
     rigid_plate->SetBodyFixed(true);
     for (double t = 0; t < (double)params.time_end; t += iteration_step, curr_step++) {
-
+//add an if statement to release the plate when the time reaches the granular settle time we define before 
         if (t >= time_settle && plate_released == false) {
             gran_sys.enableMeshCollision();
 
             rigid_plate->SetBodyFixed(false);
             max_z = gran_sys.get_max_z();
-            rigid_plate->SetPos(ChVector<>(0, 0, max_z + start_height));
+            // set the plate at the top of the granualr domain
+            rigid_plate->SetPos(ChVector<>(0, 0, max_z -2.15));
+            // set the initial speed when we release the plate
             rigid_plate->SetPos_dt(ChVector<>(0, 0, vz));
-            rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
-            //   rigid_plate->SetRot(ChQuaternion<>(0.707, 0, 0.707, 0));
             plate_released = true;
-            std::cout << "Releasing ball" << std::endl;
+            std::cout << "Releasing plate" << std::endl;
         }
-        else if (t >= time_settle && plate_released == true) {
- //           rigid_plate->SetPos_dt(ChVector<>(0, 0, vz));
-            rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
+       /* else if (t >= time_settle && plate_released == true) {
+	    vz_current=rigid_plate->GetPos_dt()[2];
+            rigid_plate->SetPos_dt(ChVector<>(0, 0, vz_current));
+           // rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
+         //   rigid_plate->SetWvel_par(ChVector<>(0,0,0));
             //   rigid_plate->SetRot(ChQuaternion<>(0.707, 0, 0.707, 0));
          //   std::cout << "Plate intruding" << std::endl;
-        }
+        }*/
     
         auto plate_pos = rigid_plate->GetPos();
         auto plate_rot = rigid_plate->GetRot();
       
         auto plate_vel = rigid_plate->GetPos_dt();
-        /*
+        
         auto plate_ang_vel = rigid_plate->GetWvel_loc();
         plate_ang_vel = rigid_plate->GetRot().GetInverse().Rotate(plate_ang_vel);
-        */
+        
         meshPosRot[0] = plate_pos.x();
         meshPosRot[1] = plate_pos.y();
         meshPosRot[2] = plate_pos.z();
-        meshPosRot[3] = plate_rot[0];
-        meshPosRot[4] = plate_rot[1];
-        meshPosRot[5] = plate_rot[2];
-        meshPosRot[6] = plate_rot[3];
+        meshPosRot[3] =  plate_rot[0];
+        meshPosRot[4] =  plate_rot[1];
+        meshPosRot[5] =  plate_rot[2];
+        meshPosRot[6] =  plate_rot[3];
 
-        meshVel[0] = (float)0;
-        meshVel[1] = (float)0;// plate_vel.y();
-        meshVel[2] = (float)plate_vel.z();
-        meshVel[3] = (float)0;// plate_ang_vel.x();
-        meshVel[4] = (float)0;// plate_ang_vel.y();
-        meshVel[5] = (float)0;// plate_ang_vel.z();
+        meshVel[0] = (float) plate_vel.x();
+        meshVel[1] = (float) plate_vel.y();
+        meshVel[2] = (float) plate_vel.z();
+        meshVel[3] = (float) plate_ang_vel.x();
+        meshVel[4] = (float) plate_ang_vel.y();
+        meshVel[5] = (float) plate_ang_vel.z();
 
         gran_sys.meshSoup_applyRigidBodyMotion(meshPosRot, meshVel);
 
@@ -270,6 +288,8 @@ int main(int argc, char* argv[]) {
         rigid_plate->Empty_forces_accumulators();
         rigid_plate->Accumulate_force(ChVector<>(plate_force[0], plate_force[1], plate_force[2]), plate_pos, false);
         rigid_plate->Accumulate_torque(ChVector<>(plate_force[3], plate_force[4], plate_force[5]), false);
+       // rigid_plate->Accumulate_force(ChVector<>(plate_force[0], plate_force[1], plate_force[2]), plate_pos, false);
+      //  rigid_plate->Accumulate_torque(ChVector<>(plate_force[3], plate_force[4], plate_force[5]), false);
         /*       std::cout <<rigid_plate->GetPos()[2]<<','<< rigid_plate->Get_accumulated_force()[0] * F_CGS_TO_SI << ','
                             << rigid_plate->Get_accumulated_force()[1] * F_CGS_TO_SI << ','
                             << rigid_plate->Get_accumulated_force()[2] * F_CGS_TO_SI <<','<<gran_sys.get_max_z()<<','<<gran_sys.getNumSpheres()<< std::endl;
@@ -278,16 +298,18 @@ int main(int argc, char* argv[]) {
                         << rigid_plate->Get_accumulated_force()[2] * F_CGS_TO_SI
                         << '\n';
                         */
+        // this part is for displaying some realtime data on command line and write down some position, velocity and force data into csv file
         if (counter % 100 == 0) {
             std::cout << t << ',' <<plate_vel.z()<< ',' << rigid_plate->GetPos()[2] << ',' << plate_force[0] * F_CGS_TO_SI << ','
                 << plate_force[1] * F_CGS_TO_SI << ','
                 << plate_force[2] * F_CGS_TO_SI << ',' << gran_sys.get_max_z() << ',' << gran_sys.getNumSpheres() << std::endl;
-            out_as << t << "," << plate_force[0] * F_CGS_TO_SI << ","
-                << plate_force[1] * F_CGS_TO_SI << ","
-                << plate_force[2] * F_CGS_TO_SI
+            out_as << t << "," << plate_force[0] * F_CGS_TO_SI << ","<< plate_force[1] * F_CGS_TO_SI << ","
+                << plate_force[2] * F_CGS_TO_SI<<","<< plate_force[3]<<","<< plate_force[4]<<","<< plate_force[5]
                 << '\n';
             out_pos << t << "," << rigid_plate->GetPos()[0] << "," << rigid_plate->GetPos()[1] << ","
-                << rigid_plate->GetPos()[2] << "," << gran_sys.get_max_z() << "\n";
+                << rigid_plate->GetPos()[2] << "," << gran_sys.get_max_z() << ","<< plate_rot[0] <<","<< plate_rot[1]<<","<< plate_rot[2]<<","<< plate_rot[3] <<"\n";
+            out_vel << t << "," << rigid_plate->GetPos_dt()[0] << "," << rigid_plate->GetPos_dt()[1] << ","
+                << rigid_plate->GetPos_dt()[2] << "," << plate_ang_vel.x() <<"," << plate_ang_vel.y() <<","<< plate_ang_vel.z() <<"\n";
         }
         if (curr_step % out_steps == 0) {
             std::cout << "Rendering frame " << currframe << std::endl;
@@ -314,5 +336,6 @@ int main(int argc, char* argv[]) {
     delete[] meshVel;
     out_as.close();
     out_pos.close();
+    out_vel.close();
     return 0;
 }
