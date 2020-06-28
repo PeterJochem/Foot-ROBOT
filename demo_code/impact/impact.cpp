@@ -191,7 +191,7 @@ int main(int argc, char* argv[]) {
     rigid_plate->SetBodyFixed(true);
     sys_plate.AddBody(rigid_plate); 
     //create a reference body that the plate can move vertically
-    auto ref_body = chrono_types::make_shared<ChBody>();
+/*    auto ref_body = chrono_types::make_shared<ChBody>();
     sys_plate.AddBody(ref_body);
     ref_body->SetBodyFixed(true);
     ref_body->SetCollide(false);
@@ -199,7 +199,7 @@ int main(int argc, char* argv[]) {
     auto my_Link_reffoot = std::make_shared<ChLinkLockPrismatic>();
     my_Link_reffoot->Initialize(ref_body, rigid_plate, ChCoordsys<>(ChVector<>(0, 0,0), Q_from_AngZ(0)));
     sys_plate.AddLink(my_Link_reffoot);
-
+*/
     unsigned int out_fps = 50;
     std::cout << "Rendering at " << out_fps << "FPS" << std::endl;
 
@@ -220,12 +220,12 @@ int main(int argc, char* argv[]) {
     double gamma = CH_C_PI/2;
     double belta = 0;
     // the initial z direciton speed of the plate
-    double vz=-10.0;
+    double vz=-100.0;
 
     std::cout << vz << std::endl;
     out_as << vz/100 << '\n';
     out_pos << vz/100 << '\n';  
-
+    out_vel<<vz/100<<'\n';
     double start_height = length / 2 * sin(belta);
 
     int counter = 0;
@@ -239,7 +239,7 @@ int main(int argc, char* argv[]) {
             rigid_plate->SetBodyFixed(false);
             max_z = gran_sys.get_max_z();
             // set the plate at the top of the granualr domain
-            rigid_plate->SetPos(ChVector<>(0, 0, max_z -2.15));
+            rigid_plate->SetPos(ChVector<>(0, 0, max_z-1.9));
             // set the initial speed when we release the plate
             rigid_plate->SetPos_dt(ChVector<>(0, 0, vz));
             plate_released = true;
@@ -262,20 +262,20 @@ int main(int argc, char* argv[]) {
         auto plate_ang_vel = rigid_plate->GetWvel_loc();
         plate_ang_vel = rigid_plate->GetRot().GetInverse().Rotate(plate_ang_vel);
         
-        meshPosRot[0] = plate_pos.x();
-        meshPosRot[1] = plate_pos.y();
+        meshPosRot[0] = 0;// plate_pos.x();
+        meshPosRot[1] = 0;// plate_pos.y();
         meshPosRot[2] = plate_pos.z();
-        meshPosRot[3] =  plate_rot[0];
-        meshPosRot[4] =  plate_rot[1];
-        meshPosRot[5] =  plate_rot[2];
-        meshPosRot[6] =  plate_rot[3];
+        meshPosRot[3] = 1;// plate_rot[0];
+        meshPosRot[4] = 0;// plate_rot[1];
+        meshPosRot[5] = 0;// plate_rot[2];
+        meshPosRot[6] = 0;// plate_rot[3];
 
-        meshVel[0] = (float) plate_vel.x();
-        meshVel[1] = (float) plate_vel.y();
+        meshVel[0] = (float)0;// plate_vel.x();
+        meshVel[1] = (float)0;// plate_vel.y();
         meshVel[2] = (float) plate_vel.z();
-        meshVel[3] = (float) plate_ang_vel.x();
-        meshVel[4] = (float) plate_ang_vel.y();
-        meshVel[5] = (float) plate_ang_vel.z();
+        meshVel[3] = (float)0;// plate_ang_vel.x();
+        meshVel[4] = (float)0;// plate_ang_vel.y();
+        meshVel[5] = (float)0;// plate_ang_vel.z();
 
         gran_sys.meshSoup_applyRigidBodyMotion(meshPosRot, meshVel);
 
@@ -286,8 +286,8 @@ int main(int argc, char* argv[]) {
         gran_sys.collectGeneralizedForcesOnMeshSoup(plate_force);
 
         rigid_plate->Empty_forces_accumulators();
-        rigid_plate->Accumulate_force(ChVector<>(plate_force[0], plate_force[1], plate_force[2]), plate_pos, false);
-        rigid_plate->Accumulate_torque(ChVector<>(plate_force[3], plate_force[4], plate_force[5]), false);
+        rigid_plate->Accumulate_force(ChVector<>(0, 0, plate_force[2]), plate_pos, false);
+        rigid_plate->Accumulate_torque(ChVector<>(0, 0, 0), false);
        // rigid_plate->Accumulate_force(ChVector<>(plate_force[0], plate_force[1], plate_force[2]), plate_pos, false);
       //  rigid_plate->Accumulate_torque(ChVector<>(plate_force[3], plate_force[4], plate_force[5]), false);
         /*       std::cout <<rigid_plate->GetPos()[2]<<','<< rigid_plate->Get_accumulated_force()[0] * F_CGS_TO_SI << ','
