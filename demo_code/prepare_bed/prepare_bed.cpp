@@ -63,17 +63,22 @@ void writeMeshFrames(std::ostringstream& outstream, ChBody& body, std::string ob
     outstream << mesh_scaling << "," << mesh_scaling << "," << mesh_scaling;
     outstream << "\n";
 }
-const double time_settle = 0.7;
+const double time_settle = 0.5;
+const double lid_compress = 0.5;
+const double release_energy = 0.5; 
+const double particle_moving = 1.0;
+const double plate_moving_up = 0.8;
 constexpr float F_CGS_TO_SI = 1e-5;
 int main(int argc, char* argv[]) {
 
     std::ofstream out_as("output_plate_forces.csv");
     std::ofstream out_pos("output_plate_positions.csv");
     std::ofstream out_vel("output_plate_velocities.csv");
+    std::ofstream plate_pos_short("plate_pos_short.csv");
     std::ofstream lid_force("lid_forces.csv");
     std::ofstream lid_position("lid_pos.csv");
     std::ofstream lid_velocity("lid_vel.csv");
-    std::ofstream lid_pos_short("lid_pos_short");
+    std::ofstream lid_pos_short("lid_pos_short.csv");
     sim_param_holder params;
     if (argc != 2 || ParseJSON(argv[1], params) == false) {
         ShowUsage(argv[0]);
@@ -90,7 +95,7 @@ int main(int argc, char* argv[]) {
     double fill_top = params.box_Z / 2.0;     // 200/4
 
    // chrono::utils::PDSampler<float> sampler(2.4f * params.sphere_radius);
-    chrono::utils::HCPSampler<float> sampler(2.07f * params.sphere_radius);
+    chrono::utils::HCPSampler<float> sampler(2.5f * params.sphere_radius);
 
     // leave a 0.5cm margin at edges of sampling
     ChVector<> hdims(params.box_X / 2-0.5 , params.box_Y / 2-0.5 , 0);
@@ -98,6 +103,7 @@ int main(int argc, char* argv[]) {
     std::vector<ChVector<float>> body_points;
 
     // Shift up for bottom of box
+    std::vector<float3> particle_vel;
     center.z() += 3 * params.sphere_radius;
     while (center.z() < fill_top) {
         std::cout << "Create layer at " << center.z() << std::endl;
@@ -107,7 +113,21 @@ int main(int argc, char* argv[]) {
     }
 
     apiSMC_TriMesh.setElemsPositions(body_points);
+    //gran_sys.setParticlePositions(body_points);
+    std::vector<float3> pointsFloat3;
+    convertChVector2Float3Vec(body_points, pointsFloat3);
+    int j = 0;
+    float vvx, vvy, vvz;
+    for (j = 0; j < pointsFloat3.size(); j++) {
+        vvx = (rand() % 10 + 1)*10;
+        vvy = (rand() % 10 + 1)*10;
+        vvz = (-rand() % 10 + 1)*10;
+        particle_vel.push_back(make_float3(vvx,vvy,vvz));
+     //   std::cout << "vx= " << vvx << std::endl;
+    }
 
+   // std::cout <<"vector size:  "<< pointsFloat3.size()<<std::endl;
+    gran_sys.setParticlePositions(pointsFloat3, particle_vel);
     gran_sys.set_BD_Fixed(true);
     std::function<double3(float)> pos_func_wave = [&params](float t) {
         double3 pos = {0, 0, 0};
@@ -165,7 +185,7 @@ int main(int argc, char* argv[]) {
     mesh_filenames.push_back(mesh_filename_lid);
 
     float3 translation_plate = make_float3(-2.5f, -2.5f, 0.f);
-    float3 translation_lid=make_float3(-20.f, -20.f, 0.f);
+    float3 translation_lid=make_float3(-50.f, -50.f, 0.f);
     mesh_translations.push_back(translation_plate);
     mesh_translations.push_back(translation_lid);
 
@@ -198,7 +218,7 @@ int main(int argc, char* argv[]) {
     gran_sys.setOutputMode(params.write_mode);
     gran_sys.setVerbose(params.verbose);
     filesystem::create_directory(filesystem::path(params.output_dir));
-
+    
     unsigned int nSoupFamilies = gran_sys.getNumTriangleFamilies();
     std::cout << nSoupFamilies << " soup families" << std::endl;
     double* meshPosRot = new double[7 * nSoupFamilies];
@@ -260,8 +280,13 @@ int main(int argc, char* argv[]) {
     clock_t start = std::clock();
     //create an array to store a list of initial velocities
     double vz_array[10] = { -1.0,-2.0,-5.0,-10.0,-20.0,-30.0,-40.0,-50.0,-100.0,-10000.0 };
-    double lid_speed = -10.0;
-    for(int i=5;i<6;i++)
+    double lid_speed = -5.0;
+    bool change_gravity = false;
+    bool paticle_moving_state = false;
+    bool plate_extract_state = false;
+    bool plate_impact_state = false;
+    bool granular_set_state = false;
+    for(int i=0;i<1;i++)
     {
         // the state of the plate, flase means the plate is fixed while true means the plate has been released
         bool plate_released = false;
@@ -284,7 +309,7 @@ int main(int argc, char* argv[]) {
         int counter = 0;
         rigid_plate->SetPos(ChVector<>(0, 0, 20));
         rigid_plate->SetBodyFixed(true);
-        rigid_lid->SetPos(ChVector<>(0, 0, 20));
+        rigid_lid->SetPos(ChVector<>(0, 0, 200));
         rigid_lid->SetBodyFixed(true);
         for (double t = 0; t < (double)params.time_end; t += iteration_step, curr_step++) {
             //add an if statement to release the plate when the time reaches the granular settle time we define before 
@@ -292,7 +317,10 @@ int main(int argc, char* argv[]) {
             // 1. Use a lid to compress the top of the  granular domain in order to make it plain
             // 2. Lift the lid to a high enough position and wait for some time to let the granular spheres release energies
             // 3. Release the impactor and let it impact into granular particles
-            if (t < time_settle && lid_released==false) {
+            
+
+          //  gran_sys.set_gravitational_acceleration(0.0, 0.0, 0.0);
+          /*  if (t < lid_compress && lid_released==false) {
                 gran_sys.enableMeshCollision();
                // rigid_plate->SetBodyFixed(false);
                 rigid_lid->SetBodyFixed(false);
@@ -302,31 +330,76 @@ int main(int argc, char* argv[]) {
                 
                 lid_released = true;
             }
-            if (t < time_settle && lid_released == true) {
+            if (t < lid_compress && lid_released == true) {
                 //rigid_plate->SetPos_dt(ChVector<>(0, 0, lid_speed));
                 rigid_lid->SetPos_dt(ChVector<>(0, 0, lid_speed));
                 rigid_lid->SetRot(Q_from_AngAxis(0, VECT_Y));
             }
-            if (t > time_settle) {
+            if (t> lid_compress && t < (lid_compress+release_energy)) {
                 rigid_lid->SetPos(ChVector<>(0, 0, max_z + 200));
                 rigid_lid->SetBodyFixed(true);
                 //rigid_plate->SetPos(ChVector<>(0, 0, max_z + 200));
                 //rigid_plate->SetBodyFixed(true);
             }
-            /* if (t >= time_settle && plate_released == false) {
+            */
+            if (t >= particle_moving && t <= particle_moving + plate_moving_up && plate_extract_state==false) {
+                gran_sys.enableMeshCollision();
+                rigid_plate->SetBodyFixed(false);
+                // set the plate at the top of the granualr domain
+                rigid_plate->SetPos(ChVector<>(0, 0, -20));
+                // set the initial speed when we release the plate
+                
+                plate_extract_state = true;
+                std::cout << "Plate extract" << std::endl;
+            }
+            if (t >= particle_moving && t <= particle_moving + plate_moving_up && plate_extract_state == true) {
+                rigid_plate->SetPos_dt(ChVector<>(0, 0, 40));
+            }
+            if (t > particle_moving + plate_moving_up&&granular_set_state==false) {
+                rigid_plate->SetBodyFixed(true);
+                rigid_plate->SetPos(ChVector<>(0, 0, 2000));
+                granular_set_state = true;
+            }
+
+            if (t > particle_moving + plate_moving_up + time_settle && lid_released==false) {
+                gran_sys.enableMeshCollision();
+                // rigid_plate->SetBodyFixed(false);
+                rigid_lid->SetBodyFixed(false);
+                max_z = gran_sys.get_max_z();
+                // rigid_plate->SetPos(ChVector<>(0, 0, max_z +5.5));
+                rigid_lid->SetPos(ChVector<>(0, 0, max_z + 7.5));
+
+                lid_released = true;
+            }
+            if (t > particle_moving + plate_moving_up + time_settle && t < particle_moving + plate_moving_up + time_settle+lid_compress &&lid_released == true) {
+                //rigid_plate->SetPos_dt(ChVector<>(0, 0, lid_speed));
+                rigid_lid->SetPos_dt(ChVector<>(0, 0, lid_speed));
+                rigid_lid->SetRot(Q_from_AngAxis(0, VECT_Y));
+            }
+            if (t > (particle_moving + plate_moving_up + time_settle+lid_compress+time_settle) && plate_impact_state==false) {
+                rigid_plate->SetBodyFixed(false);
+                rigid_lid->SetPos(ChVector<>(0, 0, 200));
+                max_z = gran_sys.get_max_z();
+                rigid_plate->SetPos_dt(ChVector<>(0, 0, 0));
+                rigid_plate->SetPos(ChVector<>(0, 0, max_z - 1.0));
+                plate_impact_state = true;
+            }
+            /*
+            if (t >= lid_compress+release_energy && plate_released == false) {
                 gran_sys.enableMeshCollision();
 
                 rigid_plate->SetBodyFixed(false);
                 max_z = gran_sys.get_max_z();
                 // set the plate at the top of the granualr domain
-                rigid_plate->SetPos(ChVector<>(0, 0, max_z+1));
+                rigid_plate->SetPos(ChVector<>(0, 0, max_z));
                 // set the initial speed when we release the plate
                 rigid_plate->SetPos_dt(ChVector<>(0, 0, vz));
                 plate_released = true;
                 std::cout << "Releasing plate" << std::endl;
             }*/
-            
 
+            
+            
            /* else if (t >= time_settle && plate_released == true) {
 	        vz_current=rigid_plate->GetPos_dt()[2];
                 rigid_plate->SetPos_dt(ChVector<>(0, 0, vz_current));
@@ -412,7 +485,7 @@ int main(int argc, char* argv[]) {
              /*   std::cout << t << ',' <<plate_vel.z()<< ',' << rigid_plate->GetPos()[2] << ',' << plate_force[0] * F_CGS_TO_SI << ','
                     << plate_force[1] * F_CGS_TO_SI << ','
                     << plate_force[2] * F_CGS_TO_SI << ',' << gran_sys.get_max_z() << ',' << gran_sys.getNumSpheres() << std::endl;*/
-                std::cout << t << ',' << lid_vel.z() << ',' << rigid_lid->GetPos()[2] << ',' << plate_force[0] * F_CGS_TO_SI << ','
+                std::cout << t << ',' << plate_vel.z() << ',' << rigid_plate->GetPos()[2] << ',' << plate_force[0] * F_CGS_TO_SI << ','
                     << plate_force[1] * F_CGS_TO_SI << ','
                     << plate_force[2] * F_CGS_TO_SI << ',' << gran_sys.get_max_z() << ',' << gran_sys.getNumSpheres() << std::endl;
                 out_as << t << "," << plate_force[0] * F_CGS_TO_SI << ","<< plate_force[1] * F_CGS_TO_SI << ","
@@ -439,6 +512,7 @@ int main(int argc, char* argv[]) {
                         writeMeshFrames(outstream, *rigid_plate, mesh_filename,0.5);
                         meshfile << outstream.str();
                         lid_pos_short << t << "," << lid_pos.x() << "," << lid_pos.y() << "," << lid_pos.z() << "," << lid_rot[0] << "," << lid_rot[1] << "," << lid_rot[2] << "," << lid_rot[3] << "\n";
+                        plate_pos_short << t << "," << plate_pos.x() << "," << plate_pos.y() << "," << plate_pos.z() << "," << plate_rot[0] << "," << plate_rot[1] << "," << plate_rot[2] << "," << plate_rot[3] << "\n";
                         
             }
             counter++;
@@ -454,6 +528,7 @@ int main(int argc, char* argv[]) {
     out_as.close();
     out_pos.close();
     out_vel.close();
+    plate_pos_short.close();
     lid_force.close();
     lid_position.close();
     lid_velocity.close();
