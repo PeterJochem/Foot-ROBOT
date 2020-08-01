@@ -14,6 +14,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <sstream>
+#include <fstream>
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/core/ChGlobal.h"
 #include "chrono_thirdparty/filesystem/path.h"
@@ -30,7 +32,7 @@
 
 using namespace chrono;
 using namespace chrono::granular;
-
+using namespace std;
 void ShowUsage(std::string name) {
     std::cout << "usage: " + name + " <json_file>" << std::endl;
 }
@@ -72,6 +74,9 @@ const double release_energy = 0.5;
 const double particle_moving = 1.0;
 const double plate_moving_up = 0.8;
 constexpr float F_CGS_TO_SI = 1e-5;
+const int M = 87;
+const int N = 19;
+void readdata(string address, double array[M][N]);
 int main(int argc, char* argv[]) {
 
     std::ofstream out_as("output_plate_forces.csv");
@@ -83,6 +88,11 @@ int main(int argc, char* argv[]) {
     std::ofstream lid_velocity("lid_vel.csv");
     std::ofstream lid_pos_short("lid_pos_short.csv");
     sim_param_holder params;
+
+    // read the body and foot states data from a txt file 
+    string data_address = "sim0.txt"; //the address of the file that you want to read
+    double array[M][N];
+    readdata(data_address, array);
     if (argc != 2 || ParseJSON(argv[1], params) == false) {
         ShowUsage(argv[0]);
         return 1;
@@ -229,12 +239,12 @@ int main(int argc, char* argv[]) {
 
     gran_sys.initialize();
 
-// create a plate for simulation
+// create a plate and a lid for simulation
     ChSystemSMC sys_plate;
     sys_plate.SetContactForceModel(ChSystemSMC::ContactForceModel::Hooke);
     sys_plate.SetTimestepperType(ChTimestepper::Type::EULER_EXPLICIT);
     sys_plate.Set_G_acc(ChVector<>(0, 0, -980));
-  //  auto rigid_plate = std::make_shared<ChBodyEasyBox>(length, width, thickness, plate_density, true, true);
+
 
 
     std::shared_ptr<ChBody> rigid_plate(sys_plate.NewBody());
@@ -295,10 +305,7 @@ int main(int argc, char* argv[]) {
         bool plate_released = false;
         bool lid_released = false;
         double max_z = gran_sys.get_max_z();
-        /*
-        double start_gamma = CH_C_PI_2;
-        double resolution = start_gamma / 10;
-        double gamma = CH_C_PI/2;*/
+
         double belta = 0;
         // the initial z direciton speed of the plate
         double vz=vz_array[i];
@@ -316,36 +323,6 @@ int main(int argc, char* argv[]) {
         rigid_lid->SetBodyFixed(true);
         for (double t = 0; t < (double)params.time_end; t += iteration_step, curr_step++) {
         
-            //add an if statement to release the plate when the time reaches the granular settle time we define before 
-            // the simulation is divided into three parts
-            // 1. Use a lid to compress the top of the  granular domain in order to make it plain
-            // 2. Lift the lid to a high enough position and wait for some time to let the granular spheres release energies
-            // 3. Release the impactor and let it impact into granular particles
-            
-              
-          //  gran_sys.set_gravitational_acceleration(0.0, 0.0, 0.0);
-          /*  if (t < lid_compress && lid_released==false) {
-                gran_sys.enableMeshCollision();
-               // rigid_plate->SetBodyFixed(false);
-                rigid_lid->SetBodyFixed(false);
-                max_z = gran_sys.get_max_z();
-               // rigid_plate->SetPos(ChVector<>(0, 0, max_z +11.5));
-                rigid_lid->SetPos(ChVector<>(0, 0, max_z + 11.5));
-                
-                lid_released = true;
-            }
-            if (t < lid_compress && lid_released == true) {
-                //rigid_plate->SetPos_dt(ChVector<>(0, 0, lid_speed));
-                rigid_lid->SetPos_dt(ChVector<>(0, 0, lid_speed));
-                rigid_lid->SetRot(Q_from_AngAxis(0, VECT_Y));
-            }
-            if (t> lid_compress && t < (lid_compress+release_energy)) {
-                rigid_lid->SetPos(ChVector<>(0, 0, max_z + 200));
-                rigid_lid->SetBodyFixed(true);
-                //rigid_plate->SetPos(ChVector<>(0, 0, max_z + 200));
-                //rigid_plate->SetBodyFixed(true);
-            }
-            */
 
 ///////////////////////If statements for preparing the bed ////////////////////////////////////////////////////////////////////////////
 ////////////////////// 1. particle moving period: give particles initial velcoties and let it bounce           ////////////////////////
@@ -376,76 +353,7 @@ int main(int argc, char* argv[]) {
                 rigid_plate->SetPos(ChVector<>(0, 0, max_z + 0.8));
                 plate_impact_state = true;
             }
-            /*if (t >= particle_moving && t <= particle_moving + plate_moving_up && plate_extract_state==false) {
-                gran_sys.enableMeshCollision();
-                rigid_plate->SetBodyFixed(false);
-                // set the plate at the top of the granualr domain
-                rigid_plate->SetPos(ChVector<>(0, 0, -20));
-                // set the initial speed when we release the plate
-                
-                plate_extract_state = true;
-                std::cout << "Plate extract" << std::endl;
-            }
-            if (t >= particle_moving && t <= particle_moving + plate_moving_up && plate_extract_state == true) {
-                rigid_plate->SetPos_dt(ChVector<>(0, 0, 40));
-            }
-            if (t > particle_moving + plate_moving_up&&granular_set_state==false) {
-                rigid_plate->SetBodyFixed(true);
-                rigid_plate->SetPos(ChVector<>(0, 0, 2000));
-                granular_set_state = true;
-            }
 
-            if (t > particle_moving + plate_moving_up + time_settle && lid_released==false) {
-                gran_sys.enableMeshCollision();
-                // rigid_plate->SetBodyFixed(false);
-                rigid_lid->SetBodyFixed(false);
-                max_z = gran_sys.get_max_z();
-                // rigid_plate->SetPos(ChVector<>(0, 0, max_z +5.5));
-                rigid_lid->SetPos(ChVector<>(0, 0, max_z + 5.5));
-                rigid_lid->SetPos_dt(ChVector<>(0, 0, 0));
-                lid_released = true;
-            }
-            if (t > particle_moving + plate_moving_up + time_settle && t < particle_moving + plate_moving_up + time_settle+lid_compress &&lid_released == true) {
-                //rigid_plate->SetPos_dt(ChVector<>(0, 0, lid_speed));
-               // rigid_lid->SetPos_dt(ChVector<>(0, 0, lid_speed));
-                rigid_lid->SetRot(Q_from_AngAxis(0, VECT_Y));
-            }
-            if (t > particle_moving + plate_moving_up + time_settle + lid_compress) {
-                rigid_lid->SetPos(ChVector<>(0, 0, 200));
-                rigid_lid->SetBodyFixed(true);
-            }
-            if (t > (particle_moving + plate_moving_up + time_settle+lid_compress+time_settle2) && plate_impact_state==false) {
-                rigid_plate->SetBodyFixed(false);
-
-                max_z = gran_sys.get_max_z();
-                rigid_plate->SetPos_dt(ChVector<>(0, 0, vz));
-                rigid_plate->SetPos(ChVector<>(0, 0, max_z+0.8));
-                plate_impact_state = true;
-            }*/
-            /*
-            if (t >= lid_compress+release_energy && plate_released == false) {
-                gran_sys.enableMeshCollision();
-
-                rigid_plate->SetBodyFixed(false);
-                max_z = gran_sys.get_max_z();
-                // set the plate at the top of the granualr domain
-                rigid_plate->SetPos(ChVector<>(0, 0, max_z));
-                // set the initial speed when we release the plate
-                rigid_plate->SetPos_dt(ChVector<>(0, 0, vz));
-                plate_released = true;
-                std::cout << "Releasing plate" << std::endl;
-            }*/
-
-            
-            
-           /* else if (t >= time_settle && plate_released == true) {
-	        vz_current=rigid_plate->GetPos_dt()[2];
-                rigid_plate->SetPos_dt(ChVector<>(0, 0, vz_current));
-               // rigid_plate->SetRot(Q_from_AngAxis(belta, VECT_Y));
-             //   rigid_plate->SetWvel_par(ChVector<>(0,0,0));
-                //   rigid_plate->SetRot(ChQuaternion<>(0.707, 0, 0.707, 0));
-             //   std::cout << "Plate intruding" << std::endl;
-            }*/
     
             auto plate_pos = rigid_plate->GetPos();
             auto plate_rot = rigid_plate->GetRot();
@@ -572,4 +480,36 @@ int main(int argc, char* argv[]) {
     lid_velocity.close();
     lid_pos_short.close();
     return 0;
+}
+
+void readdata(string address, double array[M][N]) {
+    ifstream myFile(address, ios::in);
+    string lineStr;
+    vector<vector<string>> strArray;
+    int i, j;
+    i = 0;
+
+
+    if (myFile.fail())
+        cout << "read failed" << endl;
+
+    while (getline(myFile, lineStr)) {
+        j = 0;
+        stringstream ss(lineStr);
+        string str;
+        vector<string> lineArray;
+        while (getline(ss, str, ','))
+        {
+            stringstream convertor(str);
+            if (i > 0) {
+                convertor >> array[i - 1][j];  //pass the value into array
+
+            }
+
+            j++;
+        }
+        i++;
+
+    }
+
 }
