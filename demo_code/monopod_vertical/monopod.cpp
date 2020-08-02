@@ -32,7 +32,7 @@
 
 using namespace chrono;
 using namespace chrono::granular;
-using namespace std;
+//using namespace std;
 void ShowUsage(std::string name) {
     std::cout << "usage: " + name + " <json_file>" << std::endl;
 }
@@ -76,7 +76,31 @@ const double plate_moving_up = 0.8;
 constexpr float F_CGS_TO_SI = 1e-5;
 const int M = 87;
 const int N = 19;
-void readdata(string address, double array[M][N]);
+void readdata(std::string address, double array[M][N]);
+double interpolate(double* xData, double* yData, double x, bool extrapolate)
+{
+    int size = 1000;
+
+    int i = 0;                                                                  // find left end of interval for interpolation
+    if (x >= xData[size - 2])                                                 // special case: beyond right end
+    {
+        i = size - 2;
+    }
+    else
+    {
+        while (x > xData[i + 1]) i++;
+    }
+    double xL = xData[i], yL = yData[i], xR = xData[i + 1], yR = yData[i + 1];      // points on either side (unless beyond ends)
+    if (!extrapolate)                                                         // if beyond ends of array and not extrapolating
+    {
+        if (x < xL) yR = yL;
+        if (x > xR) yL = yR;
+    }
+
+    double dydx = (yR - yL) / (xR - xL);                                    // gradient
+
+    return yL + dydx * (x - xL);                                              // linear interpolation
+}
 int main(int argc, char* argv[]) {
 
     std::ofstream out_as("output_plate_forces.csv");
@@ -90,9 +114,19 @@ int main(int argc, char* argv[]) {
     sim_param_holder params;
 
     // read the body and foot states data from a txt file 
-    string data_address = "sim0.txt"; //the address of the file that you want to read
-    double array[M][N];
-    readdata(data_address, array);
+    std::string data_address = "sim0.txt"; //the address of the file that you want to read
+    double data_array[M][N];
+    readdata(data_address, data_array);
+    // create arrays to store ux uy u_theta
+    double time_array[M],ux_array[M],uy_array[M],utheta_array[M];
+    
+    for (int i = 0; i < M; i++) {
+        time_array[i] = data_array[i][0];
+        ux_array[i] = data_array[i][10];
+        uy_array[i] = data_array[i][11];
+        utheta_array[i] = data_array[i][12]; 
+    }
+
     if (argc != 2 || ParseJSON(argv[1], params) == false) {
         ShowUsage(argv[0]);
         return 1;
@@ -210,6 +244,9 @@ int main(int argc, char* argv[]) {
     float lid_length = 100.0;
     float lid_width = 100.0;
     float lid_thickness = 10.0;
+    float body_length = 5.0;
+    float body_width = 5.0; 
+    float body_thickness = 5.0; 
 
     std::vector<ChMatrix33<float>> mesh_rotscales(1, ChMatrix33<float>(0.1));
     mesh_rotscales.push_back(ChMatrix33<float>(1.0));
@@ -219,6 +256,8 @@ int main(int argc, char* argv[]) {
     float plate_mass = (float)length * width * thickness * plate_density ;
     float lid_density = 0.01;
     float lid_mass = (float)lid_length * lid_width * lid_thickness * lid_density;
+    float body_density = 40.0;
+    float body_mass = (float)body_length * body_width * body_thickness * body_density;
 
 
    // std::vector<float> mesh_masses(1, plate_mass);
@@ -249,27 +288,36 @@ int main(int argc, char* argv[]) {
 
     std::shared_ptr<ChBody> rigid_plate(sys_plate.NewBody());
     std::shared_ptr<ChBody> rigid_lid(sys_plate.NewBody());
+    std::shared_ptr<ChBody> rigid_body(sys_plate.NewBody());
 
 
     rigid_lid->SetMass(lid_mass);
     rigid_lid->SetPos(ChVector<>(0,0,15));
     rigid_plate->SetMass(plate_mass);
     rigid_plate->SetPos(ChVector<>(0,0,15));
+    rigid_body->SetMass(body_mass);
+    rigid_body->SetPos(ChVector<>(0, 0, 100));
 
-   
     double inertiax = 1.0 / 12.0 * plate_mass*(thickness* thickness +width*width);
     double inertiay = 1.0 / 12.0 * plate_mass * (thickness * thickness + length * length);
     double inertiaz = 1.0 / 12.0 * plate_mass * (length * length + width * width);
     double lid_inertiax = 1.0 / 12.0 * lid_mass * (lid_thickness * lid_thickness + lid_width * lid_width);
     double lid_inertiay = 1.0 / 12.0 * lid_mass * (lid_thickness * lid_thickness + lid_length * lid_length);
     double lid_inertiaz = 1.0 / 12.0 * lid_mass * (lid_length * lid_length + lid_width * lid_width);
+    double body_inertiax = 1.0 / 12.0 * body_mass * (body_thickness * body_thickness + body_width * body_width);
+    double body_inertiay = 1.0 / 12.0 * body_mass * (body_thickness * body_thickness + body_length * body_length);
+    double body_inertiaz = 1.0 / 12.0 * body_mass * (body_length * body_length + body_width * body_width);
 
     rigid_lid->SetInertiaXX(ChVector<>(lid_inertiax,lid_inertiay,lid_inertiaz));
     rigid_lid->SetBodyFixed(true);
     rigid_plate->SetInertiaXX(ChVector<>(inertiax, inertiay, inertiaz));
     rigid_plate->SetBodyFixed(true);
+    rigid_body->SetInertiaXX(ChVector<>(body_inertiax, body_inertiay, body_inertiaz));
+    rigid_body->SetBodyFixed(true);
+
     sys_plate.AddBody(rigid_plate); 
     sys_plate.AddBody(rigid_lid);
+    sys_plate.AddBody(rigid_body);
 
     //create a reference body that the plate can move vertically
 /*    auto ref_body = chrono_types::make_shared<ChBody>();
@@ -409,10 +457,26 @@ int main(int argc, char* argv[]) {
 
             float plate_force[6*2];
             gran_sys.collectGeneralizedForcesOnMeshSoup(plate_force);
-
+            double ux = 0.0, uy = 0.0, utheta = 0.0;
+            if (t < particle_moving + lid_compress + time_settle2) {
+                ux = 0.0;
+                uy = 0.0;
+                utheta = 0.0;
+            }
+            else if (t> particle_moving + lid_compress + time_settle2&& t< particle_moving + lid_compress + time_settle2+0.9)
+            {
+                ux = interpolate(time_array,ux_array,t,true);
+                uy = interpolate(time_array, uy_array, t, true);
+                utheta = interpolate(time_array, utheta_array, t, true);
+            }
+            else {
+                ux = 0.0;
+                uy = 0.0;
+                utheta = 0.0;
+            }
             rigid_plate->Empty_forces_accumulators();
-            rigid_plate->Accumulate_force(ChVector<>(0, 0, plate_force[2]), plate_pos, false);
-            rigid_plate->Accumulate_torque(ChVector<>(0, 0, 0), false);
+            rigid_plate->Accumulate_force(ChVector<>(0-ux, 0, plate_force[2]-uy), plate_pos, false);
+            rigid_plate->Accumulate_torque(ChVector<>(0, 0+utheta, 0), false);
             rigid_lid->Empty_forces_accumulators();
             rigid_lid->Accumulate_force(ChVector<>(plate_force[6], plate_force[7], plate_force[8]), lid_pos, false);
             rigid_lid->Accumulate_torque(ChVector<>(plate_force[9], plate_force[10], plate_force[11]),false);
@@ -482,25 +546,25 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-void readdata(string address, double array[M][N]) {
-    ifstream myFile(address, ios::in);
-    string lineStr;
-    vector<vector<string>> strArray;
+void readdata(std::string address, double array[M][N]) {
+    std::ifstream myFile(address, std::ios::in);
+    std::string lineStr;
+
     int i, j;
     i = 0;
 
 
     if (myFile.fail())
-        cout << "read failed" << endl;
+        std::cout << "read failed" << std::endl;
 
     while (getline(myFile, lineStr)) {
         j = 0;
-        stringstream ss(lineStr);
-        string str;
-        vector<string> lineArray;
+        std::stringstream ss(lineStr);
+        std::string str;
+        std::vector<std::string> lineArray;
         while (getline(ss, str, ','))
         {
-            stringstream convertor(str);
+            std::stringstream convertor(str);
             if (i > 0) {
                 convertor >> array[i - 1][j];  //pass the value into array
 
