@@ -73,13 +73,17 @@ const double lid_compress = 0.5;
 const double release_energy = 0.5; 
 const double particle_moving = 1.0;
 const double plate_moving_up = 0.8;
+const double prepare_time = particle_moving + lid_compress + time_settle2; 
 constexpr float F_CGS_TO_SI = 1e-5;
+
+const double F_SI_TO_CGS = 1e5;
+const double Torque_SI_TO_CGS = 1e7; 
 const int M = 87;
 const int N = 19;
 void readdata(std::string address, double array[M][N]);
 double interpolate(double* xData, double* yData, double x, bool extrapolate)
 {
-    int size = 1000;
+    int size = 87;
 
     int i = 0;                                                                  // find left end of interval for interpolation
     if (x >= xData[size - 2])                                                 // special case: beyond right end
@@ -122,9 +126,9 @@ int main(int argc, char* argv[]) {
     
     for (int i = 0; i < M; i++) {
         time_array[i] = data_array[i][0];
-        ux_array[i] = data_array[i][10];
-        uy_array[i] = data_array[i][11];
-        utheta_array[i] = data_array[i][12]; 
+        ux_array[i] = data_array[i][13];
+        uy_array[i] = data_array[i][14];
+        utheta_array[i] = data_array[i][15]; 
     }
 
     if (argc != 2 || ParseJSON(argv[1], params) == false) {
@@ -397,7 +401,7 @@ int main(int argc, char* argv[]) {
             if (t >= particle_moving + lid_compress + time_settle2 && plate_impact_state==false) {
                 rigid_plate->SetBodyFixed(false);
                 max_z = gran_sys.get_max_z();
-                rigid_plate->SetPos_dt(ChVector<>(0, 0, vz));
+                rigid_plate->SetPos_dt(ChVector<>(0, 0, 0));
                 rigid_plate->SetPos(ChVector<>(0, 0, max_z + 0.8));
                 plate_impact_state = true;
             }
@@ -458,16 +462,17 @@ int main(int argc, char* argv[]) {
             float plate_force[6*2];
             gran_sys.collectGeneralizedForcesOnMeshSoup(plate_force);
             double ux = 0.0, uy = 0.0, utheta = 0.0;
-            if (t < particle_moving + lid_compress + time_settle2) {
+            if (t < prepare_time) {
                 ux = 0.0;
                 uy = 0.0;
                 utheta = 0.0;
             }
-            else if (t> particle_moving + lid_compress + time_settle2&& t< particle_moving + lid_compress + time_settle2+0.9)
+            else if (t> prepare_time&& t< prepare_time+time_array[M-1])
             {
-                ux = interpolate(time_array,ux_array,t,true);
-                uy = interpolate(time_array, uy_array, t, true);
-                utheta = interpolate(time_array, utheta_array, t, true);
+                ux = interpolate(time_array,ux_array,t-prepare_time,true)*F_SI_TO_CGS;
+                uy = interpolate(time_array, uy_array, t-prepare_time, true)*F_SI_TO_CGS;
+                utheta = interpolate(time_array, utheta_array, t-prepare_time, true)*Torque_SI_TO_CGS;
+                //std::cout << "\n\n\n" << "ux  uy  utheta\n" << ux << '\n' << uy << '\n' << utheta << "\n\n\n" << std::endl;
             }
             else {
                 ux = 0.0;
