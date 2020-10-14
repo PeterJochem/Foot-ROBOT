@@ -179,9 +179,9 @@ int main(int argc, char* argv[]) {
     gran_sys.set_static_friction_coeff_SPH2WALL(params.static_friction_coeffS2W);
     gran_sys.set_static_friction_coeff_SPH2MESH(params.static_friction_coeffS2M);
 
-    std::string mesh_filename(GetChronoDataFile("granular/demo_foot_intrude/foot.obj"));
-    
-    std::string mesh_filename_lid = GetChronoDataFile("granular/demo_foot_intrude/foot.obj");
+    std::string mesh_filename(GetChronoDataFile("../data/foot.obj"));
+   
+    std::string mesh_filename_lid = GetChronoDataFile("../data/foot.obj");
 
    // std::vector<string> mesh_filenames(1,mesh_filename);
 
@@ -287,7 +287,7 @@ int main(int argc, char* argv[]) {
     gran_sys.disableMeshCollision();
     clock_t start = std::clock();
 
-    double beta_array[6] = { CH_C_PI/2.0,CH_C_PI/3.0,CH_C_PI / 6.0,0,-CH_C_PI / 6.0,-CH_C_PI/3.0 };
+    double beta_array[6] = {CH_C_PI/2.0, CH_C_PI/3.0, CH_C_PI/6.0, 0, -CH_C_PI/6.0, -CH_C_PI/3.0};
     double lid_speed = -5.0;
     bool change_gravity = false;
     bool paticle_moving_state = false;
