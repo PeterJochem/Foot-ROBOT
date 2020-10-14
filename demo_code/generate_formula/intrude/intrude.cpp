@@ -1,4 +1,3 @@
-
 // =============================================================================
 // PROJECT CHRONO - http://projectchrono.org
 //
@@ -78,19 +77,19 @@ const double plate_moving_up = 0.8;
 constexpr float F_CGS_TO_SI = 1e-5;
 int main(int argc, char* argv[]) {
 
-    std::ofstream out_as("output_plate_forces.csv");
-    std::ofstream out_pos("output_plate_positions.csv");
-    std::ofstream out_vel("output_plate_velocities.csv");
-    std::ofstream plate_pos_short("plate_pos_short.csv");
-    std::ofstream lid_force("lid_forces.csv");
-    std::ofstream lid_position("lid_pos.csv");
-    std::ofstream lid_velocity("lid_vel.csv");
-    std::ofstream lid_pos_short("lid_pos_short.csv");
+    std::ofstream data_set("data_sets/dset.csv", std::ios_base::app);
     sim_param_holder params;
-    if (argc != 2 || ParseJSON(argv[1], params) == false) {
+    if (argc < 2 || ParseJSON(argv[1], params) == false) {
         ShowUsage(argv[0]);
         return 1;
     }
+	
+    // Get the command line arguments specifying gamma and the speed
+    double gamma_launch = atof(argv[2]);
+    double speed_launch = atof(argv[3]);
+
+    std::cout << gamma_launch << std::endl;
+    std::cout << speed_launch << std::endl;
 
     float iteration_step = params.step_size;
 
@@ -180,7 +179,7 @@ int main(int argc, char* argv[]) {
     gran_sys.set_static_friction_coeff_SPH2MESH(params.static_friction_coeffS2M);
 
     std::string mesh_filename(GetChronoDataFile("../data/foot.obj"));
-   
+    
     std::string mesh_filename_lid = GetChronoDataFile("../data/foot.obj");
 
    // std::vector<string> mesh_filenames(1,mesh_filename);
@@ -303,17 +302,19 @@ int main(int argc, char* argv[]) {
         bool plate_impact_state = false;
         double max_z = gran_sys.get_max_z();
             
-        double gamma = CH_C_PI/6.0;//CH_C_PI/2.0;
+        double gamma = gamma_launch; // CH_C_PI/6.0; //CH_C_PI/2.0;
         double beta = beta_array[i];
+
         ///////////////////////////////////////////////////////////
         ////////// You can change the intrusion speed here////////
-        //////////////////////////////////////////////////////////
-        double vx = -3.0 * cos(gamma);
-        double vz = -3.0 * sin(gamma);
-        std::cout << "beta =  " << beta*180/CH_C_PI << "gamma =  " << gamma*180/CH_C_PI << std::endl;
-        out_as << gamma*180/CH_C_PI << ',' << beta*180/CH_C_PI << std::endl; 
-        out_pos << gamma*180/CH_C_PI << ',' << beta*180/CH_C_PI << std::endl;
-        out_vel << gamma*180/CH_C_PI << ',' << beta*180/CH_C_PI << std::endl;
+        ////////////////////////////////////////////////////////// 
+	double vx = -speed_launch * cos(gamma);
+        double vz = -speed_launch * sin(gamma);
+        std::cout << "beta =  " << beta*180/CH_C_PI << " gamma =  " << gamma*180/CH_C_PI << std::endl;
+        
+	//out_as << gamma*180/CH_C_PI << ',' << beta*180/CH_C_PI << std::endl; 
+        //out_pos << gamma*180/CH_C_PI << ',' << beta*180/CH_C_PI << std::endl;
+        //out_vel << gamma*180/CH_C_PI << ',' << beta*180/CH_C_PI << std::endl;
 
         double start_height = length / 2 * sin(beta);
 
@@ -411,42 +412,27 @@ int main(int argc, char* argv[]) {
 
             // this part is for displaying some realtime data on command line and write down some position, velocity and force data into csv file
             if (counter % 20 == 0) {
-             /*   std::cout << t << ',' <<plate_vel.z()<< ',' << rigid_plate->GetPos()[2] << ',' << plate_force[0] * F_CGS_TO_SI << ','
-                    << plate_force[1] * F_CGS_TO_SI << ','
-                    << plate_force[2] * F_CGS_TO_SI << ',' << gran_sys.get_max_z() << ',' << gran_sys.getNumSpheres() << std::endl;*/
-                std::cout << t << ',' << plate_vel.z() << ',' << rigid_plate->GetPos()[2] << ',' << plate_force[0] * F_CGS_TO_SI << ','
-                    << plate_force[1] * F_CGS_TO_SI << ','
-                    << plate_force[2] * F_CGS_TO_SI << ',' << gran_sys.get_max_z() << ',' << gran_sys.getNumSpheres() << std::endl;
-                out_as << t << "," << plate_force[0] * F_CGS_TO_SI << ","<< plate_force[1] * F_CGS_TO_SI << ","
-                    << plate_force[2] * F_CGS_TO_SI<<","<< plate_force[3]<<","<< plate_force[4]<<","<< plate_force[5]
-                    << '\n';
-                out_pos << t << "," << rigid_plate->GetPos()[0] << "," << rigid_plate->GetPos()[1] << ","
-                    << rigid_plate->GetPos()[2] << "," << gran_sys.get_max_z() << ","<< plate_rot[0] <<","<< plate_rot[1]<<","<< plate_rot[2]<<","<< plate_rot[3] <<"\n";
-                out_vel << t << "," << rigid_plate->GetPos_dt()[0] << "," << rigid_plate->GetPos_dt()[1] << ","
-                    << rigid_plate->GetPos_dt()[2] << "," << plate_ang_vel.x() <<"," << plate_ang_vel.y() <<","<< plate_ang_vel.z() <<"\n";
-                lid_position << t << "," << lid_pos.x() << "," << lid_pos.y() << "," << lid_pos.z() << "," << lid_rot[0] << "," << lid_rot[1] << "," << lid_rot[2] << "," << lid_rot[3] << "\n";
-                //lid_velocity<< t << ","<<lid_vel[0]<<","<<lid_vel
-            }
-            // This part records the velocity and position data of granular particles. If we don't want to make granular animations or analyze those particles' states, 
-            // comment this part for better simulation speed
-  /*          if (counter % 3000 == 0) {
-                std::cout << "Rendering frame " << currframe << std::endl;
-                        char filename[100];
-                        sprintf(filename, "%s/step%06d", params.output_dir.c_str(), currframe++);
-                        gran_sys.writeFile(std::string(filename));
+                
+		// Gamma, Beta, depth, position_x, position_z, velocity x, velocity y, GRF x, GRF Z
+                double depth = gran_sys.get_max_z();
 
-                        std::string mesh_output = std::string(filename) + "_meshframes.csv";
-                        std::ofstream meshfile(mesh_output);
-                        std::ostringstream outstream;
-                     //   outstream << "mesh_name,dx,dy,dz,x1,x2,x3,y1,y2,y3,z1,z2,z3,sx,sy,sz\n";
-                        outstream<<t<<'\n';
-                        writeMeshFrames(outstream, *rigid_plate, mesh_filename,0.5);
-                        meshfile << outstream.str();
-                        lid_pos_short << t << "," << lid_pos.x() << "," << lid_pos.y() << "," << lid_pos.z() << "," << lid_rot[0] << "," << lid_rot[1] << "," << lid_rot[2] << "," << lid_rot[3] << "\n";
-                        plate_pos_short << t << "," << plate_pos.x() << "," << plate_pos.y() << "," << plate_pos.z() << "," << plate_rot[0] << "," << plate_rot[1] << "," << plate_rot[2] << "," << plate_rot[3] << "\n";
-                        
+                double position_x = rigid_plate->GetPos()[0];
+                double position_y = rigid_plate->GetPos()[1];
+                double position_z = rigid_plate->GetPos()[2];
+
+                double x_dt = rigid_plate->GetPos_dt()[0];
+                double y_dt = rigid_plate->GetPos_dt()[1];
+                double z_dt = rigid_plate->GetPos_dt()[2];
+
+                double grf_x = plate_force[0] * F_CGS_TO_SI;
+                double grf_y = plate_force[1] * F_CGS_TO_SI;
+                double grf_z = plate_force[2] * F_CGS_TO_SI;
+
+                data_set << gamma << ", " << beta << ", " << depth << ", " << position_x << ", " << position_y << ", " << position_z << ", " << x_dt << ", " << y_dt << ", " << z_dt << ", " << grf_x << ", " << grf_y << ", " << grf_z << std::endl;
+
             }
-*/            counter++;
+	    
+	    counter++;
         }
      }
     clock_t end = std::clock();
@@ -456,13 +442,6 @@ int main(int argc, char* argv[]) {
 
     delete[] meshPosRot;
     delete[] meshVel;
-    out_as.close();
-    out_pos.close();
-    out_vel.close();
-    plate_pos_short.close();
-    lid_force.close();
-    lid_position.close();
-    lid_velocity.close();
-    lid_pos_short.close();
+    data_set.close();
     return 0;
 }
